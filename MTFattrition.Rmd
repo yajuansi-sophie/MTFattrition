@@ -1,7 +1,7 @@
 ---
 title: "Cohort Trajectory modeling-selected model"
 author: "Yajuan Si"
-date: "07/01/2021"
+date: "04/09/2022"
 output:
   word_document: default
   html_document: default
@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-#install.packages(c("tidyverse","mi", "survey", "rpart","gridExtra", "pROC","geepack", "lme4","party","MASS"))
+#install.packages(c("tidyverse","mi", "survey", "rpart","gridExtra", "pROC","geepack", "lme4","party","MASS","markdown", "mice"))
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -26,7 +26,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #
 #library(rstanarm); library(margins);
 library(tidyverse); library(mi); library(survey); library(rpart); library(gridExtra)
-library(knitr); library(pROC); library(geepack);  library(lme4);  library(party); library(MASS)
+library(knitr); library(pROC); library(geepack);  library(lme4);  library(party); library(MASS); library(tidyr)
+library(markdown); library(mice)
 
 g_legend = function(a.gplot){
   tmp = ggplot_gtable(ggplot_build(a.gplot))
@@ -48,17 +49,21 @@ setwd("I:/WorkingProgramFiles/")
 ```{r, echo=FALSE, warning=FALSE, include=FALSE}
 #region
 # table(data$V113,useNA="always")
-# 
+#
 # # #of patients
 # table(data$V155,useNA = "always")
-# 
+#
 # #parent education
-# table(data$V363,useNA="always")
-# 
-# 
+# table(data$V363,useNA="always") #father
+#
+data = data %>%
+  mutate(
+    pa_col = ifelse(V363  %in% c("(05) CLG GRAD:(5)", "(06) GRAD SCH:(6)") | V364  %in% c("(05) CLG GRAD:(5)", "(06) GRAD SCH:(6)"), 1, ifelse(V363  %in% c("(07) DK:(7)", "(99) 99:Missing") | V364  %in% c("(07) DK:(7)", "(99) 99:Missing"), "Miss", 0))
+  )
+#
 # #State
 # table(data$V139,useNA = "always")
-# 
+#
 # #sex
 # table(data$V350, useNA = "always")
 
@@ -73,11 +78,11 @@ data$V351_rc[is.na(data$V351)]= "(99) 99:Missing"
 
 data = data %>%
   mutate(
-    V351_rc = ifelse(V351_rc %in% c("(01) AMER IND:(1)", "(03) CHICANO:(3)", "(04) CUBAN AM:(4)", "(08) PRTCN AM:(8)", "(09) OTH LATIN:(9)"), "Hispanic", 
-                     ifelse(V351_rc == "(02) BLACK:(2)", "Black", 
+    V351_rc = ifelse(V351_rc %in% c("(01) AMER IND:(1)", "(03) CHICANO:(3)", "(04) CUBAN AM:(4)", "(08) PRTCN AM:(8)", "(09) OTH LATIN:(9)"), "Hispanic",
+                     ifelse(V351_rc == "(02) BLACK:(2)", "Black",
                             ifelse(V351_rc == "(06) WHITE:(6)", "White",
                                    ifelse(V351_rc == "(05) ASIAN AM:(5)", "Asian",
-                                          ifelse(V351_rc == "(07) OTHER:(7)", "Other", 
+                                          ifelse(V351_rc == "(07) OTHER:(7)", "Other",
                                                  "Miss")))))
 
 )
@@ -102,7 +107,7 @@ table(data$V351_rc, useNA="always")
 # table(data$V383,useNA = "always")
 # table(data$V1767,useNA = "always")
 # table(data$V2767,useNA = "always")
-# 
+#
 # data = data%>%
 #   mutate(
 #     coll_0 =ifelse(V383=="(04) DEF WILL:(4)", 1, ifelse(V383=="(99) 99:Missing", "Miss",0)),
@@ -142,12 +147,7 @@ data = data%>%
     marry_6 =ifelse(V6748 =="(01) MARRIED:(1)", 1, ifelse(V6748=="(99) 99:Missing", "Miss",0))
   )
 
-#impute incomplete continuous variables: age,  R$/AVG WEEK JOB,  R$/AVG WEEK oth 1-10
-mean(data$V34==999); mean(data$V392==99); mean(data$V393==99)
 
-data$V34[data$V34==999] = sample(data$V34[!data$V34==999], sum(data$V34==999),replace = T)
-data$V392[data$V392==99] = sample(data$V392[!data$V392==99], sum(data$V392==99),replace = T)
-data$V393[data$V393==99] = sample(data$V393[!data$V393==99], sum(data$V393==99),replace = T)
 ```
 
 
@@ -187,7 +187,7 @@ data = data%>%
      B302_3 =ifelse(V3702=="(01) NT DAILY:(1)", 0, ifelse(V3702=="(99) 99:Missing", "Miss",1)),
      B302_4 =ifelse(V4702=="(01) NT DAILY:(1)", 0, ifelse(V4702=="(99) 99:Missing", "Miss",1)),
      B302_5 =ifelse(V5702=="(01) NT DAILY:(1)", 0, ifelse(V5702=="(99) 99:Missing", "Miss",1)),
-     B302_6 =ifelse(V6702=="(01) NT DAILY:(1)", 0, ifelse(V6702=="(99) 99:Missing", "Miss",1))   
+     B302_6 =ifelse(V6702=="(01) NT DAILY:(1)", 0, ifelse(V6702=="(99) 99:Missing", "Miss",1))
   )
 
 
@@ -293,7 +293,7 @@ for (i in 1:4){
   data[, paste0("O",317+ 3*(i-1)+1,"_",0)] = ifelse(data[,paste0("V",317+ 3*(i-1)+1)]=="(01) 0 OCCAS:(1)", 0, ifelse(data[,paste0("V",317+ 3*(i-1)+1)]=="(02) 1-2X:(2)", 1, ifelse(data[,paste0("V",317+ 3*(i-1)+1)] %in% c("(03) 3-5X:(3)", "(04) 6-9X:(4)"), 2,ifelse(data[,paste0("V",317+ 3*(i-1)+1)] %in% c("(05) 10-19X:(5)","(06) 20-39X:(6)","(07) 40+OCCAS:(7)"),3,"Miss"))))
   for (k in 1:6){
       data[, paste0("O",317+ 3*(i-1)+1,"_",k)] = ifelse(data[,paste0("V",1717+1000*(k-1)+ 3*(i-1)+1)]=="(01) 0 OCCAS:(1)", 0, ifelse(data[,paste0("V",1717+1000*(k-1)+ 3*(i-1)+1)]=="(02) 1-2X:(2)", 1, ifelse(data[,paste0("V",1717+1000*(k-1)+ 3*(i-1)+1)] %in% c("(03) 3-5X:(3)", "(04) 6-9X:(4)"), 2,ifelse(data[,paste0("V",1717+1000*(k-1)+ 3*(i-1)+1)] %in% c("(05) 10-19X:(5)","(06) 20-39X:(6)","(07) 40+OCCAS:(7)"),3,"Miss"))))
-    
+
   }
 }
 
@@ -301,54 +301,271 @@ for (i in 1:4){
   data[, paste0("O",332+ 3*(i-1)+1,"_",0)] = ifelse(data[,paste0("V",332+ 3*(i-1)+1)]=="(01) 0 OCCAS:(1)", 0, ifelse(data[,paste0("V",332+ 3*(i-1)+1)]=="(02) 1-2X:(2)", 1, ifelse(data[,paste0("V",332+ 3*(i-1)+1)] %in% c("(03) 3-5X:(3)", "(04) 6-9X:(4)"), 2,ifelse(data[,paste0("V",332+ 3*(i-1)+1)] %in% c("(05) 10-19X:(5)","(06) 20-39X:(6)","(07) 40+OCCAS:(7)"),3,"Miss"))))
   for (k in 1:6){
       data[, paste0("O",332+ 3*(i-1)+1,"_",k)] = ifelse(data[,paste0("V",1732+1000*(k-1)+ 3*(i-1)+1)]=="(01) 0 OCCAS:(1)", 0, ifelse(data[,paste0("V",1732+1000*(k-1)+ 3*(i-1)+1)]=="(02) 1-2X:(2)", 1, ifelse(data[,paste0("V",1732+1000*(k-1)+ 3*(i-1)+1)] %in% c("(03) 3-5X:(3)", "(04) 6-9X:(4)"), 2,ifelse(data[,paste0("V",1732+1000*(k-1)+ 3*(i-1)+1)] %in% c("(05) 10-19X:(5)","(06) 20-39X:(6)","(07) 40+OCCAS:(7)"),3,"Miss"))))
-    
+
   }
 }
+```
 
 
-vnames=c("coll", "marry", "binge", "B302","B306", "B316","B319", "B322", "B325", "B328", "B334","B337", "B340", "B343")
+```{r miitemnew}
 
-summary(apply(data[, paste0(vnames, "_0")]== "Miss", 2, mean),
-apply(data[, paste0(vnames, "_1")]== "Miss", 2, na.rm=T,mean),
-apply(data[, paste0(vnames, "_2")]== "Miss", 2, na.rm=T,mean),
-apply(data[, paste0(vnames, "_3")]== "Miss", 2, na.rm=T,mean),
-apply(data[, paste0(vnames, "_4")]== "Miss", 2, na.rm=T,mean),
-apply(data[, paste0(vnames, "_5")]== "Miss", 2, na.rm=T,mean),
-apply(data[, paste0(vnames, "_6")]== "Miss", 2, na.rm=T,mean))
+#impute incomplete continuous variables: age,  R$/AVG WEEK JOB,  R$/AVG WEEK oth 1-10
+mean(data$V34==999); mean(data$V392==99); mean(data$V393==99)
 
-apply(data[, paste0(vnames, "_0")]== "Miss", 2, mean)[3]
-apply(data[, paste0(vnames, "_1")]== "Miss", 2, na.rm=T,mean)
-apply(data[, paste0(vnames, "_2")]== "Miss", 2, na.rm=T,mean)
-apply(data[, paste0(vnames, "_3")]== "Miss", 2, na.rm=T,mean)
-apply(data[, paste0(vnames, "_4")]== "Miss", 2, na.rm=T,mean)
-apply(data[, paste0(vnames, "_5")]== "Miss", 2, na.rm=T,mean)
-apply(data[, paste0(vnames, "_6")]== "Miss", 2, na.rm=T,mean)
+#data$V34[data$V34==999] = sample(data$V34[!data$V34==999], sum(data$V34==999),replace = T)
+#data$V392[data$V392==99] = sample(data$V392[!data$V392==99], sum(data$V392==99),replace = T)
+#data$V393[data$V393==99] = sample(data$V393[!data$V393==99], sum(data$V393==99),replace = T)
+
+data_v_item = subset(data,V101 %in% c(2002,2003, 2004, 2005), select=c(MTFID, V101,
+ACLUST2, V105, V101,V1001, V2001,V3001, V4001,V5001, V6001,
+                                                                ASTRAT, V106, V139, V115,
+V34, V350, V351_rc, #V364, V379))
+V353, V155, pa_col, V365, V366, V367, V368, V369, V370, V372, V375, V376, V377, V379, V380, V381, V382, V383, V384, V391, V392, V393, V394, V395, V396, V397, V398, V399, V400, V401, V402, V403, V404, V302, V304, V308, V315, V318, V321, V324, V327, V333, V336, V339, V342))
+#
 
 
-for (v in c(paste0(vnames,"_0"),paste0(vnames,"_1"),paste0(vnames,"_2"),paste0(vnames,"_3"),paste0(vnames,"_4"),paste0(vnames,"_5"),paste0(vnames,"_6"))) {
-  
-data[ !(is.na(data[,v])) & data[,v]=="Miss",v] = sample(c(0,1), sum(data[,v]=="Miss",na.rm = T), replace = TRUE, prob=table(data[!data[,v]=="Miss",v]))
+vnames_item=c("coll", "marry", "binge", "B302","B306", "B316","B319", "B322", "B325", "B328", "B334","B337", "B340", "B343")
+#ynames=c("coll", "marry", "binge", "B302","B306", "B316","comp_nm", "comp_2", "B343")
 
-}
+data_p =cbind(data_v_item, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(vnames_item,"_", 0), paste0(vnames_item,"_", 1),
+                                                          paste0(vnames_item,"_", 2),paste0(vnames_item,"_", 3),
+                                                          paste0(vnames_item,"_",4), paste0(vnames_item,"_",5), paste0(vnames_item,"_",6))])
 
-data = data %>%
+
+apply(data_p == "Miss" | data_p == "(99) 99:Missing" | data_p ==99 | data_p ==999, 2, na.rm=T,mean)
+
+
+max(apply(data_p == "Miss" | data_p == "(99) 99:Missing" | data_p ==99 | data_p ==999, 2, na.rm=T,mean))
+
+summary(apply(data_p == "Miss" | data_p == "(99) 99:Missing" | data_p ==99 | data_p ==999, 2, na.rm=T,mean))
+
+hist(apply(data_p == "Miss" | data_p == "(99) 99:Missing" | data_p ==99 | data_p ==999, 2, na.rm=T,mean))
+
+
+# vnames2 = c("coll", "marry", "binge")
+#
+# data_item = subset(data_p, select=c("MTFID",paste0(vnames2,"_", 0),
+#                                       paste0(vnames2,"_", 1),
+#                                                           paste0(vnames2,"_", 2),paste0(vnames2,"_", 3),
+#                                                           paste0(vnames2,"_",4), paste0(vnames2,"_",5), paste0(vnames2,"_",6)))
+
+baseline_item0  = subset(data_p, select = c(MTFID, V101, V34, V350, V351_rc, pa_col, V379,coll_0,marry_0,binge_0, B302_0, B306_0, B316_0, B319_0, B322_0, B325_0, B328_0, B334_0, B337_0, B340_0, B343_0))
+
+#baseline_item0 = data_v
+baseline_item = baseline_item0
+baseline_item[baseline_item0 =="Miss"] = NA
+baseline_item[baseline_item0 == "(99) 99:Missing"] = NA
+baseline_item[baseline_item0 == 99] = NA
+baseline_item[baseline_item0 == 999] = NA
+
+baseline_item = baseline_item %>%
   mutate(
-    comp_nm_0 = as.factor(ifelse(B328_0==0 & B334_0==0 & B337_0==0  & B343_0==0, 0, 1)),
-    comp_2_0 = as.factor(ifelse(B319_0==0 & B322_0==0 & B325_0==0 & B340_0==0, 0, 1)),
-        comp_nm_1 = as.factor(ifelse(B328_1==0 & B334_1==0 & B337_1==0  & B343_1==0, 0, 1)),
-    comp_2_1 = as.factor(ifelse(B319_1==0 & B322_1==0 & B325_1==0 & B340_1==0, 0, 1)),
-        comp_nm_2 = as.factor(ifelse(B328_2==0 & B334_2==0 & B337_2==0  & B343_2==0, 0, 1)),
-    comp_2_2 = as.factor(ifelse(B319_2==0 & B322_2==0 & B325_2==0 & B340_2==0, 0, 1)),
-        comp_nm_3 = as.factor(ifelse(B328_3==0 & B334_3==0 & B337_3==0  & B343_3==0, 0, 1)),
-    comp_2_3 = as.factor(ifelse(B319_3==0 & B322_3==0 & B325_3==0 & B340_3==0, 0, 1)),
-        comp_nm_4 = as.factor(ifelse(B328_4==0 & B334_4==0 & B337_4==0  & B343_4==0, 0, 1)),
-    comp_2_4 = as.factor(ifelse(B319_4==0 & B322_4==0 & B325_4==0 & B340_4==0, 0, 1)),
-        comp_nm_5 = as.factor(ifelse(B328_5==0 & B334_5==0 & B337_5==0  & B343_5==0, 0, 1)),
-    comp_2_5 = as.factor(ifelse(B319_5==0 & B322_5==0 & B325_5==0 & B340_5==0, 0, 1)),
-        comp_nm_6 = as.factor(ifelse(B328_6==0 & B334_6==0 & B337_6==0  & B343_6==0, 0, 1)),
-    comp_2_6 = as.factor(ifelse(B319_6==0 & B322_6==0 & B325_6==0 & B340_6==0, 0, 1))
+    V101 = as.factor(as.character(V101)),
+    coll_0 = as.factor(as.character(coll_0)),
+    marry_0 = as.factor(as.character(marry_0)),
+    binge_0 = as.factor(as.character(binge_0)),
+    pa_col = as.factor(as.character(pa_col))
   )
 
+ for (j in 11:21){
+   baseline_item[,j] = as.factor(as.character(baseline_item[,j]))
+ }
+mdf_v = missing_data.frame(baseline_item)
+summary(mdf_v)
+image(mdf_v)
+
+#mi_v = mi(mdf_v)
+
+tempdata = mice(baseline_item, m=1, maxit =0, seed=330)
+tempdata$meth
+#base_mth = c( "",     "pmm",        "", "polyreg", "polyreg", "polyreg","logreg","logreg","logreg")
+pred=tempdata$predictorMatrix
+pred[,1] = 0
+base1 = mice(baseline_item, m=1, maxit =30, predictorMatrix = pred,seed=45)
+densityplot(base1)
+completebase= mice::complete(base1,action="long")
+
+data_w_base_com = completebase %>%
+  mutate(comp_nm_0 = as.factor(ifelse(B328_0==0 & B334_0==0 & B337_0==0  & B343_0==0, 0, 1)),
+    comp_2_0 = as.factor(ifelse(B319_0==0 & B322_0==0 & B325_0==0 & B340_0==0, 0, 1)))
+data_w_base_com = data_w_base_com[,-c(1,2)]
+
+coll=cbind(subset(completebase, select = names(baseline_item)), data_p[, paste0("coll_", 1:6)])
+
+
+data_l=reshape(coll, direction="long",varying=paste0("coll_", 1:6),timevar="panel",times = 1:6, v.names="coll",idvar="MTFID")
+
+for (v in vnames_item[-1]){
+  temp_v=reshape(data_p[,c("MTFID", paste0(v, "_", 1:6))], direction="long",varying=paste0(v, "_", 1:6),timevar="panel",times = 1:6, v.names=v,idvar="MTFID")
+
+   data_l=merge(data_l, temp_v,by=c("MTFID","panel"))
+}
+
+
+ data_l1 = subset(data_l, !is.na(binge))
+
+   long_binge = data_l1
+   long_binge[data_l1 == "Miss"] = NA
+
+   long_binge = long_binge %>%
+     mutate(
+     coll = as.factor(as.character(coll)),
+     marry = as.factor(as.character(marry)),
+     binge = as.factor(as.character(binge)),
+     MTFID= as.integer(as.character(MTFID)),
+     panel = as.factor(as.character(panel))
+     )
+
+   for (j in c(1:3,5:36)){
+     long_binge[,j] = as.factor(as.character(long_binge[,j]))
+   }
+
+   mice_binge_temp = mice(long_binge,  m=1, maxit = 0, seed=45)
+
+   #mice:::find.collinear(long_binge)
+
+  # md.pattern(long_binge)
+  #meth = mice_binge_temp$meth
+  #meth = c(rep("",11),"2l.bin") #,"2l.bin","2l.bin")
+
+  pred_long = mice_binge_temp$predictorMatrix
+  pred_long[,"MTFID"] = 0
+  #pred_long["coll","MTFID"] = -2
+  #pred_long["marry","MTFID"] = -2
+  #pred_long["binge","MTFID"] = -2
+
+
+   mice_binge = mice(long_binge,  m=10, maxit = 20, predictorMatrix = pred_long, seed=46)
+
+
+  data_long_com = mice::complete(mice_binge,10)
+
+glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family= binomial(link = 'logit'), data_long_com)
+
+summary(glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family= binomial(link = 'logit'), data_long_com))
+
+glm_mi = with(mice_binge, glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family= binomial(link = 'logit')))
+
+summary(pool(glm_mi))
+
+mice::pool(glm_mi)
+
+#save.image("mi.RData")
+
+
+
+#  temp_marry=reshape(data_item[,c("MTFID", paste0("marry_", 1:6))], direction="long",varying=paste0("marry", "_", 1:6),timevar="panel",times = 1:6, v.names="marry",idvar="MTFID")
+#
+#   temp_coll=reshape(data_item[,c("MTFID", paste0("coll_", 1:6))], direction="long",varying=paste0("coll", "_", 1:6),timevar="panel",times = 1:6, v.names="coll",idvar="MTFID")
+#
+#
+#   base_com = subset(completebase, .imp==1, select =c("MTFID",   "V101",    "V34",     "V350",    "V351_rc", "pa_col",    "V379","coll_0","marry_0","binge_0"))
+#
+#   wide_binge = merge(base_com, data_item[, c("MTFID", paste0("binge_", 1:6))])
+#
+# long_binge0=reshape(wide_binge, direction="long",varying=paste0("binge_", 1:6),timevar="panel",times = 1:6, v.names="binge",idvar="MTFID")
+#
+#
+#    long_marry=merge(long_binge0, temp_marry,by=c("MTFID","panel"))
+#
+#    long_binge00=merge(long_marry, temp_coll,by=c("MTFID","panel"))
+#
+#    long_binge1 = subset(long_binge00, !is.na(binge))
+#
+#    long_binge = long_binge1
+#    long_binge[long_binge1 == "Miss"] = NA
+#
+#    long_binge = long_binge %>%
+#      mutate(
+#      coll = as.factor(as.character(coll)),
+#      marry = as.factor(as.character(marry)),
+#      binge = as.factor(as.character(binge)),
+#      MTFID= as.integer(as.character(MTFID)),
+#      panel = as.factor(as.character(panel))
+#      )
+#    mice_binge_temp = mice(long_binge,  m=1, maxit = 0, seed=45)
+#
+#    #mice:::find.collinear(long_binge)
+#
+#   # md.pattern(long_binge)
+#   #meth = mice_binge_temp$meth
+#   #meth = c(rep("",11),"2l.bin") #,"2l.bin","2l.bin")
+#
+#   pred_long = mice_binge_temp$predictorMatrix
+#   pred_long[,"MTFID"] = 0
+#   #pred_long["coll","MTFID"] = -2
+#   #pred_long["marry","MTFID"] = -2
+#   #pred_long["binge","MTFID"] = -2
+#
+#
+#    mice_binge = mice(long_binge,  m=10, maxit = 30, predictorMatrix = pred_long, seed=46)
+#
+#   long_com = complete(mice_binge,1)
+#
+# glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family= binomial(link = 'logit'), long_com)
+#
+#
+# glm_mi = with(mice_binge, glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family= binomial(link = 'logit')))
+#
+# summary(pool(glm_mi))
+#
+# mice::pool(glm_mi)
+#
+#
+
+
+# summary(apply(data[, paste0(vnames, "_0")]== "Miss", 2, mean),
+# apply(data[, paste0(vnames, "_1")]== "Miss", 2, na.rm=T,mean),
+# apply(data[, paste0(vnames, "_2")]== "Miss", 2, na.rm=T,mean),
+# apply(data[, paste0(vnames, "_3")]== "Miss", 2, na.rm=T,mean),
+# apply(data[, paste0(vnames, "_4")]== "Miss", 2, na.rm=T,mean),
+# apply(data[, paste0(vnames, "_5")]== "Miss", 2, na.rm=T,mean),
+# apply(data[, paste0(vnames, "_6")]== "Miss", 2, na.rm=T,mean))
+#
+# apply(data[, paste0(vnames, "_0")]== "Miss", 2, mean)[3]
+# apply(data[, paste0(vnames, "_1")]== "Miss", 2, na.rm=T,mean)
+# apply(data[, paste0(vnames, "_2")]== "Miss", 2, na.rm=T,mean)
+# apply(data[, paste0(vnames, "_3")]== "Miss", 2, na.rm=T,mean)
+# apply(data[, paste0(vnames, "_4")]== "Miss", 2, na.rm=T,mean)
+# apply(data[, paste0(vnames, "_5")]== "Miss", 2, na.rm=T,mean)
+# apply(data[, paste0(vnames, "_6")]== "Miss", 2, na.rm=T,mean)
+
+
+# for (v in c(paste0(vnames,"_0"),paste0(vnames,"_1"),paste0(vnames,"_2"),paste0(vnames,"_3"),paste0(vnames,"_4"),paste0(vnames,"_5"),paste0(vnames,"_6"))) {
+#
+# data[ !(is.na(data[,v])) & data[,v]=="Miss",v] = sample(c(0,1), sum(data[,v]=="Miss",na.rm = T), replace = TRUE, prob=table(data[!data[,v]=="Miss",v]))
+#
+# }
+```
+
+
+
+```{r new measure}
+data_long_com = data_long_com %>%
+  mutate(
+        comp_nm_0 = as.factor(ifelse(B328_0==0 & B334_0==0 & B337_0==0  & B343_0==0, 0, 1)),
+    comp_2_0 = as.factor(ifelse(B319_0==0 & B322_0==0 & B325_0==0 & B340_0==0, 0, 1)),
+        comp_nm = as.factor(ifelse(B328==0 & B334==0 & B337==0  & B343==0, 0, 1)),
+    comp_2 = as.factor(ifelse(B319==0 & B322==0 & B325==0 & B340==0, 0, 1))
+  )
+
+# data = data %>%
+#   mutate(
+#     comp_nm_0 = as.factor(ifelse(B328_0==0 & B334_0==0 & B337_0==0  & B343_0==0, 0, 1)),
+#     comp_2_0 = as.factor(ifelse(B319_0==0 & B322_0==0 & B325_0==0 & B340_0==0, 0, 1)),
+#         comp_nm_1 = as.factor(ifelse(B328_1==0 & B334_1==0 & B337_1==0  & B343_1==0, 0, 1)),
+#     comp_2_1 = as.factor(ifelse(B319_1==0 & B322_1==0 & B325_1==0 & B340_1==0, 0, 1)),
+#         comp_nm_2 = as.factor(ifelse(B328_2==0 & B334_2==0 & B337_2==0  & B343_2==0, 0, 1)),
+#     comp_2_2 = as.factor(ifelse(B319_2==0 & B322_2==0 & B325_2==0 & B340_2==0, 0, 1)),
+#         comp_nm_3 = as.factor(ifelse(B328_3==0 & B334_3==0 & B337_3==0  & B343_3==0, 0, 1)),
+#     comp_2_3 = as.factor(ifelse(B319_3==0 & B322_3==0 & B325_3==0 & B340_3==0, 0, 1)),
+#         comp_nm_4 = as.factor(ifelse(B328_4==0 & B334_4==0 & B337_4==0  & B343_4==0, 0, 1)),
+#     comp_2_4 = as.factor(ifelse(B319_4==0 & B322_4==0 & B325_4==0 & B340_4==0, 0, 1)),
+#         comp_nm_5 = as.factor(ifelse(B328_5==0 & B334_5==0 & B337_5==0  & B343_5==0, 0, 1)),
+#     comp_2_5 = as.factor(ifelse(B319_5==0 & B322_5==0 & B325_5==0 & B340_5==0, 0, 1)),
+#         comp_nm_6 = as.factor(ifelse(B328_6==0 & B334_6==0 & B337_6==0  & B343_6==0, 0, 1)),
+#     comp_2_6 = as.factor(ifelse(B319_6==0 & B322_6==0 & B325_6==0 & B340_6==0, 0, 1))
+#   )
 
 ```
 
@@ -387,16 +604,16 @@ length(unique(fu_l$MTFID[!is.na(fu_l$Res)]))
 # for (j in 2:7){
 #    panel.ind[,j] = factor(panel.ind[,j])
 #  }
-# 
+#
 #  panel.ind=panel.ind[order(panel.ind$V1001,panel.ind$V2001,panel.ind$V3001,panel.ind$V4001,panel.ind$V5001,panel.ind$V6001),]
-# 
-# 
+#
+#
 # x=panel.ind$MTFID
 # y=names(panel.ind)[-1]
 # att_pt = expand.grid(X=x, Y=y)
 # att_pt$X = factor(att_pt$X)
 # att_pt$z = as.factor(as.vector(as.matrix(panel.ind[,-1])))
-#  
+#
 # ggplot(data=att_pt, aes(X, Y, fill=z))+
 #    geom_tile()+
 #    scale_x_discrete("ID", breaks=NULL)+
@@ -418,8 +635,8 @@ data_v$ASTRAT=as.factor(data_v$ASTRAT)
 
 data_v$cc_ind = ifelse((!is.na(data_v$V1001)) & (!is.na(data_v$V2001))  & (!is.na(data_v$V3001)) & (!is.na(data_v$V4001)) & (!is.na(data_v$V5001))  & (!is.na(data_v$V6001)),1,0)
 
-# c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404", 
-#               "V302", "V304", "V308", "V315", "V318", "V321", "V324", "V327", "V333", "V336", "V339", "V34")[! c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404", 
+# c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404",
+#               "V302", "V304", "V308", "V315", "V318", "V321", "V324", "V327", "V333", "V336", "V339", "V34")[! c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404",
 #               "V302", "V304", "V308", "V315", "V318", "V321", "V324", "V327", "V333", "V336", "V339", "V34") %in% names(data_v)]
 
 
@@ -434,7 +651,7 @@ attr_tr = rpart(cc_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
               V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342,  data=data_v, method = "class",control = rpart.control(cp=0.0005))
 
 
-sapply(subset(data_v, select=c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404", 
+sapply(subset(data_v, select=c("V101", "ASTRAT", "V106", "V115", "V34", "V350", "V351_rc", "V353", "V155", "V363", "V364", "V383", "V379", "V365", "V366", "V367", "V368", "V369", "V370", "V372", "V375", "V376", "V377", "V379", "V380", "V381", "V382", "V383", "V384", "V391", "V392", "V393", "V394", "V395", "V396", "V397", "V398", "V399", "V400", "V401", "V402", "V403", "V404",
               "V302", "V304", "V308", "V315", "V318", "V321", "V324", "V327", "V333", "V336", "V339", "V34")),class)
 
 
@@ -464,16 +681,16 @@ printcp(attr_tr)
 #summary(attr_tr_cv)
 printcp(attr_tr_cv)
 #plotcp(attr_tr_cv)
-png(filename = "I:/WorkingProgramFiles/plot/0706/cctree.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/cctree.pdf")
 plot(attr_tr_cv, uniform=TRUE, compress=TRUE, main="Classification tree for CC indicators")
 text(attr_tr_cv, use.n = TRUE, cex=0.6)
 dev.off()
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/cc-ctree.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/cc-ctree.pdf")
 plot(attr_ct, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, id=FALSE),
      gp=gpar(fontsize=6),main="Classification tree for CC indicators")
-#plot(attr_ct, 
+#plot(attr_ct,
 #     gp=gpar(fontsize=6),main="Classification tree for CC indicators")
 # ggparty(attr_ct) + geom_edge() + geom_edge_label() +
 #   geom_node_splitvar()+
@@ -508,7 +725,7 @@ roc(data_v$cc_ind ~ attr_p_tr_cv, plot=TRUE, print.auc=TRUE)
 roc(data_v$cc_ind ~ attr_p_ct, plot=TRUE, print.auc=TRUE)
 
  table(data_v$V379[attr_p_ct<0.1 & data_v$cc_ind==1])
- 
+
 data_v = data_v %>%
   mutate(
   wgt_cc0 = 1 /attr_p_ct
@@ -528,7 +745,7 @@ hist(data_v$wgt_cc[data_v$cc_ind==1])
 summary(data_v$wgt_cc[data_v$cc_ind==1])
 sd(data_v$wgt_cc[data_v$cc_ind==1])
 
-#wave 1 
+#wave 1
 data_v$fu1_ind = ifelse(is.na(data_v$V1001),0,1)
 
 attr_fu1_tr = ctree(fu1_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -572,7 +789,7 @@ roc(data_v$fu1_ind ~ attr_fu1p_lg, plot=TRUE, print.auc=TRUE)
 roc(data_v$fu1_ind ~ attr_fu1, plot=TRUE, print.auc=TRUE)
 
 
-#wave 2 
+#wave 2
 data_v$fu2_ind = ifelse(is.na(data_v$V2001),0,1)
 
 attr_fu2_tr = ctree(fu2_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -591,7 +808,7 @@ hist(attr_fu2[data_v$fu2_ind==1])
 
 roc(data_v$fu2_ind ~ attr_fu2, plot=TRUE, print.auc=TRUE)
 
-#wave 3 
+#wave 3
 data_v$fu3_ind = ifelse(is.na(data_v$V3001),0,1)
 
 attr_fu3_tr = ctree(fu3_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -610,7 +827,7 @@ hist(attr_fu3[data_v$fu3_ind==1])
 
 roc(data_v$fu3_ind ~ attr_fu3, plot=TRUE, print.auc=TRUE)
 
-#wave 4 
+#wave 4
 data_v$fu4_ind = ifelse(is.na(data_v$V4001),0,1)
 
 attr_fu4_tr = ctree(fu4_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -629,7 +846,7 @@ hist(attr_fu4[data_v$fu4_ind==1])
 
 roc(data_v$fu4_ind ~ attr_fu4, plot=TRUE, print.auc=TRUE)
 
-#wave 5 
+#wave 5
 data_v$fu5_ind = ifelse(is.na(data_v$V5001),0,1)
 
 attr_fu5_tr = ctree(fu5_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -648,7 +865,7 @@ hist(attr_fu5[data_v$fu5_ind==1])
 
 roc(data_v$fu5_ind ~ attr_fu5, plot=TRUE, print.auc=TRUE)
 
-#wave 6 
+#wave 6
 data_v$fu6_ind = ifelse(is.na(data_v$V6001),0,1)
 
 attr_fu6_tr = ctree(fu6_ind ~ V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
@@ -684,19 +901,22 @@ wgt_ac_data = data_v %>%
       wgt_ac4 = ifelse(wgt_ac4 > quantile(wgt_ac4, na.rm=T, probs = 0.95), quantile(wgt_ac4, na.rm=T, probs = 0.95),wgt_ac4),
       wgt_ac5 = ifelse(wgt_ac5 > quantile(wgt_ac5, na.rm=T, probs = 0.95), quantile(wgt_ac5, na.rm=T, probs = 0.95),wgt_ac5),
       wgt_ac6 = ifelse(wgt_ac6 > quantile(wgt_ac6, na.rm=T, probs = 0.95), quantile(wgt_ac6, na.rm=T, probs = 0.95),wgt_ac6)
-   
+
   )%>%
-  dplyr::select(MTFID, wgt_ac0, wgt_ac1,wgt_ac2, wgt_ac3, wgt_ac4, wgt_ac5, wgt_ac6) 
-  
+  dplyr::select(MTFID, wgt_ac0, wgt_ac1,wgt_ac2, wgt_ac3, wgt_ac4, wgt_ac5, wgt_ac6, wgt_cc, cc_ind, fu1_ind,
+                fu2_ind, fu3_ind,fu4_ind,fu5_ind, fu6_ind, V1001, V2001, V3001, V4001, V5001, V6001)
+
 
 apply(is.na(wgt_ac_data),2,sum)
 
 summary(wgt_ac_data$wgt_ac1)
+
+#save.image("attrition.RData")
 ```
 
 
 ```{r results, echo=FALSE, warning=FALSE, message=FALSE}
-
+#load("attrition.RData")
 c(as.numeric(auc(roc(data_v$cc_ind ~ attr_p_tr_cv, print.auc=TRUE))), 0,
     as.numeric(auc(roc(data_v$fu1_ind ~ attr_fu1, print.auc=TRUE))),
     as.numeric(auc(roc(data_v$fu2_ind ~ attr_fu2, print.auc=TRUE))),
@@ -714,62 +934,62 @@ apply(round(wgt_ac_data[,-1],1),2,summary)
   
   #apply(wgt_ac_data[,-1],2,mean), apply(wgt_ac_data[,-1],2,sd), apply(wgt_ac_data[,-1],2,min), apply(wgt_ac_data[,-1],2,max))
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree1.png")
-#pdf(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree1.pdf")
-#png(filename = "ac-ctree1.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree1.pdf")
+#pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree1.pdf")
+#pdf(file = "ac-ctree1.pdf")
 plot(attr_fu1_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 1 [Age 19/20] -AC response indicators")
 dev.off()
 
 #ggparty(attr_fu1_tr) + geom_edge() + geom_edge_label()
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree2.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree2.pdf")
 plot(attr_fu2_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 2 [Age 21/22] -AC response indicators")
 dev.off()
 
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree3.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree3.pdf")
 plot(attr_fu3_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 3 [Age 23/24] -AC response indicators")
 dev.off()
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree4.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree4.pdf")
 plot(attr_fu4_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 4 [Age 25/26] -AC response indicators")
 dev.off()
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree5.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree5.pdf")
 plot(attr_fu5_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 5 [Age 27/28] -AC response indicators")
 dev.off()
 
-png(filename = "I:/WorkingProgramFiles/plot/0706/ac-ctree6.png")
+pdf(file = "I:/WorkingProgramFiles/plot/0409/ac-ctree6.pdf")
 plot(attr_fu6_tr, type="simple", drop_terminal=TRUE, inner_panel=node_inner(attr_ct, pval = FALSE),
      edge_panel=edge_simple(attr_ct, abbreviate = TRUE), terminal_panel=node_terminal(attr_ct, abbreviate = TRUE, digits = 1, id=FALSE), main="Classification tree for Wave 6 [Age 29/30] -AC response indicators")
 dev.off()
 
-# png(filename = "I:/WorkingProgramFiles/plot/0706/actree2.png")
+# pdf(file = "I:/WorkingProgramFiles/plot/0409/actree2.pdf")
 # plot(attr_fu2_tr, uniform=TRUE, compress=TRUE, main="Classification tree for Wave 2-AC indicators")
 # text(attr_fu2_tr, use.n = TRUE, cex=0.6)
 # dev.off()
 # 
-# png(filename = "I:/WorkingProgramFiles/plot/0706/actree3.png")
+# pdf(file = "I:/WorkingProgramFiles/plot/0409/actree3.pdf")
 # plot(attr_fu3_tr, uniform=TRUE, compress=TRUE, main="Classification tree for Wave 3-AC indicators")
 # text(attr_fu3_tr, use.n = TRUE, cex=0.6)
 # dev.off()
 # 
-# png(filename = "I:/WorkingProgramFiles/plot/0706/actree4.png")
+# pdf(file = "I:/WorkingProgramFiles/plot/0409/actree4.pdf")
 # plot(attr_fu4_tr, uniform=TRUE, compress=TRUE, main="Classification tree for Wave 4-AC indicators")
 # text(attr_fu4_tr, use.n = TRUE, cex=0.6)
 # dev.off()
 # 
-# png(filename = "I:/WorkingProgramFiles/plot/0706/actree5.png")
+# pdf(file = "I:/WorkingProgramFiles/plot/0409/actree5.pdf")
 # plot(attr_fu5_tr, uniform=TRUE, compress=TRUE, main="Classification tree for Wave 5-AC indicators")
 # text(attr_fu5_tr, use.n = TRUE, cex=0.6)
 # dev.off()
 # 
-# png(filename = "I:/WorkingProgramFiles/plot/0706/actree6.png")
+# pdf(file = "I:/WorkingProgramFiles/plot/0409/actree6.pdf")
 # plot(attr_fu6_tr, uniform=TRUE, compress=TRUE, main="Classification tree for Wave 6-AC indicators")
 # text(attr_fu6_tr, use.n = TRUE, cex=0.6)
 # dev.off()
@@ -780,6 +1000,12 @@ dev.off()
 #reshape from wide to long
 
 ```{r reshape, echo=FALSE, warning=FALSE, message=FALSE}
+
+data_long_com=droplevels(data_long_com)
+
+data_long0 = subset(data_long_com, select= names(data_long_com)[! names(data_long_com) %in%c("B319" , "B322",     "B325",      "B328",     
+"B334",      "B337",      "B340")])
+
 ynames=c("coll", "marry", "binge", "B302","B306", "B316","comp_nm", "comp_2", "B343")
 
 # data_p =cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0(ynames,"_", 1),
@@ -796,36 +1022,39 @@ ynames=c("coll", "marry", "binge", "B302","B306", "B316","comp_nm", "comp_2", "B
 #    data_l=merge(data_l, temp_v,by=c("MTFID","panel"))
 # }
 
-data_p =cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0(ynames,"_", 1),
-                                                          paste0(ynames,"_", 2),paste0(ynames,"_", 3),
-                                                          paste0(ynames,"_",4), paste0(ynames,"_",5), paste0(ynames,"_",6))])
+# data_p =cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0(ynames,"_", 1),
+#                                                           paste0(ynames,"_", 2),paste0(ynames,"_", 3),
+#                                                           paste0(ynames,"_",4), paste0(ynames,"_",5), paste0(ynames,"_",6))])
+# 
+# coll=cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0("coll_", 1:6))])
+# 
+# coll=cbind(base_com, data_p[, paste0("coll_", 1:6)])
+# 
+# 
+# data_l=reshape(coll, direction="long",varying=paste0("coll_", 1:6),timevar="panel",times = 1:6, v.names="coll",idvar="MTFID")
+# 
+# for (v in ynames[-1]){
+#   temp_v=reshape(data[data$V101 %in% c(2002,2003, 2004,2005),c("MTFID", paste0(v, "_", 1:6))], direction="long",varying=paste0(v, "_", 1:6),timevar="panel",times = 1:6, v.names=v,idvar="MTFID")
+#   
+#    data_l=merge(data_l, temp_v,by=c("MTFID","panel"))
+# }
+# 
+# 
+# #data_long=merge(data_l,coll_l,by=c("MTFID","panel"))
+# #data_long=merge(data_long,marry_l,by=c("MTFID","panel"))
+# 
+# 
+# # data_l = reshape(data_p, direction="long", varying= c(paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 0), paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 1),
+# #                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 2),paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 3),
+# #                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 4),paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 5),
+# #                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 6)),
+# #                  timevar="panel",times = 0:6, v.names=c("coll", "marry", "binge", "B302","B306", "B316","comp_nm", "comp_2", "B343"),idvar="MTFID")
+# 
+# 
+# 
 
-coll=cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0("coll_", 1:6))])
 
-data_l=reshape(coll, direction="long",varying=paste0("coll_", 1:6),timevar="panel",times = 1:6, v.names="coll",idvar="MTFID")
-
-for (v in ynames[-1]){
-  temp_v=reshape(data[data$V101 %in% c(2002,2003, 2004,2005),c("MTFID", paste0(v, "_", 1:6))], direction="long",varying=paste0(v, "_", 1:6),timevar="panel",times = 1:6, v.names=v,idvar="MTFID")
-  
-   data_l=merge(data_l, temp_v,by=c("MTFID","panel"))
-}
-
-
-#data_long=merge(data_l,coll_l,by=c("MTFID","panel"))
-#data_long=merge(data_long,marry_l,by=c("MTFID","panel"))
-
-
-# data_l = reshape(data_p, direction="long", varying= c(paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 0), paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 1),
-#                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 2),paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 3),
-#                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 4),paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 5),
-#                                                           paste0(c("coll_", "marry_", "binge_", "B302_","B306_", "B316_","comp_nm_", "comp_2_", "B343_"), 6)),
-#                  timevar="panel",times = 0:6, v.names=c("coll", "marry", "binge", "B302","B306", "B316","comp_nm", "comp_2", "B343"),idvar="MTFID")
-
-
-
-
-
-wgt_ac_l=reshape(wgt_ac_data, direction="long",varying=paste0("wgt_ac", 1:6),timevar="panel",times = 1:6, v.names="wgt_ac",idvar="MTFID")
+wgt_ac_l=reshape(subset(wgt_ac_data, select=c(MTFID, cc_ind, wgt_cc, wgt_ac0, wgt_ac1,wgt_ac2, wgt_ac3, wgt_ac4, wgt_ac5, wgt_ac6)), direction="long",varying=paste0("wgt_ac", 1:6),timevar="panel",times = 1:6, v.names="wgt_ac",idvar="MTFID")
 
 summary(wgt_ac_l$wgt_ac[wgt_ac_l$panel==1])
 
@@ -841,22 +1070,20 @@ summary(wgt_ac_l$wgt_ac[wgt_ac_l$panel==1])
 
 #data_long=merge(data_l,coll_l,by=c("MTFID","panel"))
 #data_long=merge(data_long,marry_l,by=c("MTFID","panel"))
-data_long=merge(data_l,wgt_ac_l,by=c("MTFID","panel"))
+data_long=merge(data_long0,wgt_ac_l,by=c("MTFID","panel"))
 
 
-#data_long$binge[ !(is.na(data_long$binge)) & data_long$binge=="Miss"] = sample(c(0,1), sum(data_long$binge=="Miss",na.rm = T), replace = TRUE, prob=table(data_long$binge[!data_long$binge=="Miss"]))
-#data_long$binge=as.numeric(as.character(data_long$binge))
-vnames2=c("binge", "B302","B306", "B316","comp_nm", "comp_2", "B343")
-for (v in vnames2) {
-data_long[,v]=as.numeric(as.character(data_long[,v]))
-}
+# #data_long$binge[ !(is.na(data_long$binge)) & data_long$binge=="Miss"] = sample(c(0,1), sum(data_long$binge=="Miss",na.rm = T), replace = TRUE, prob=table(data_long$binge[!data_long$binge=="Miss"]))
+# #data_long$binge=as.numeric(as.character(data_long$binge))
+# vnames2=c("binge", "B302","B306", "B316","comp_nm", "comp_2", "B343")
+# for (v in vnames2) {
+# data_long[,v]=as.numeric(as.character(data_long[,v]))
+# }
+# 
+# data_long$coll = as.factor(data_long$coll)
+# data_long$marry = as.factor(data_long$marry)
+# data_long$panel=as.factor(data_long$panel)
 
-data_long$coll = as.factor(data_long$coll)
-data_long$marry = as.factor(data_long$marry)
-data_long$panel=as.factor(data_long$panel)
-
-
-data_long=droplevels(data_long)
 
 
 
@@ -865,19 +1092,53 @@ data_long=droplevels(data_long)
 # descriptive statistics
 ```{r describe, echo=FALSE, warning=FALSE,message=FALSE}
 
-data_d=merge(data_p,wgt_ac_data,by=c("MTFID"))
+#reshape(data[data$V101 %in% c(2002,2003, 2004,2005),c("MTFID", paste0(v, "_", 1:6))], direction="long",varying=paste0(v, "_", 1:6),timevar="panel",times = 1:6, v.names=v,idvar="MTFID")
+
+# coll=cbind(data_v, data[data$V101 %in% c(2002,2003, 2004,2005), c(paste0(ynames,"_", 0), paste0("coll_", 1:6))])
+# 
+coll_long=data_long0[,c(1:2, 23)]
+
+coll_w = pivot_wider(coll_long, id_cols = MTFID, names_from = panel, values_from = coll, names_prefix = "coll_")
+# 
+
+data_w = data_w_base_com
+
+
+# 
+# data_w1=reshape(coll_long, direction="wide",varying=paste0("coll_", 1:6),timevar="panel",times = 1:6, v.names="coll",idvar="MTFID")
+# 
+ for (v in ynames){
+   temp_v = pivot_wider(data_long0[,c("MTFID", "panel",v)], id_cols = MTFID, names_from = panel, values_from = v, names_prefix = paste0(v,"_"))
+
+   data_w=merge(data_w, temp_v,by=c("MTFID"), all.x=TRUE)
+   
+ }   
+#   temp_v=reshape(data_long0[,c("MTFID", "panel",v)], direction="wide",varying=paste0(v, "_", 1:6),timevar="panel",times = 1:6, v.names=v,idvar="MTFID")
+# 
+#    data_w1=merge(data_w1, temp_v,by=c("MTFID"))
+# }
+# subset(data_p, select=c("MTFID",paste0(ynames,"_", 0),
+#                                        paste0(ynames,"_", 1),
+#                                       paste0(ynames,"_", 2),paste0(ynames,"_", 3),
+# paste0(ynames,"_",4), paste0(ynames,"_",5), paste0(ynames,"_",6))))
+# 
+# data_w = merge(data_w_base_com, 
+
+#data_wide = reshape(data_long0, direction="wide",timevar="panel",times = 1:6, idvar="MTFID", v.names = ynames)
+
+data_d=merge(data_w,wgt_ac_data,by=c("MTFID"), all.y=T)
 
 cat("sample size")
 c(dim(data_d)[1], sum(data_d$cc_ind==1), sum(data_d$MTFID %in% unique(fu_l$MTFID[!is.na(fu_l$Res)])), sum(!is.na(data_d$V1001)),                                                       sum(!is.na(data_d$V2001)),sum(!is.na(data_d$V3001)),sum(!is.na(data_d$V4001)),sum(!is.na(data_d$V5001)),sum(!is.na(data_d$V6001)))
 
-x.list = c("V101", "V106", "V350", "V351_rc", "V363", "V364", "V379")
+x.list = c("V101", "V350", "V351_rc", "pa_col", "V379")
 
-x.table = round(c(mean(data_d$V34), mean(data_d$V34[data_d$cc_ind==1]), mean(data_d$V34[data_d$MTFID %in% unique(fu_l$MTFID[!is.na(fu_l$Res)])]),mean(data_d$V34[!is.na(data_d$V1001)]),
+x.table = round(c(mean(data_d$V34,na.rm=T), mean(data_d$V34[data_d$cc_ind==1]), mean(data_d$V34[data_d$MTFID %in% unique(fu_l$MTFID[!is.na(fu_l$Res)])]),mean(data_d$V34[!is.na(data_d$V1001)]),
  mean(data_d$V34[!is.na(data_d$V2001)]),mean(data_d$V34[!is.na(data_d$V3001)]),
  mean(data_d$V34[!is.na(data_d$V4001)]),mean(data_d$V34[!is.na(data_d$V5001)]),
  mean(data_d$V34[!is.na(data_d$V6001)])), 0)
 
-x.table = rbind(x.table, round(c(sd(data_d$V34), sd(data_d$V34[data_d$cc_ind==1]), sd(data_d$V34[data_d$MTFID %in% unique(fu_l$MTFID[!is.na(fu_l$Res)])]),sd(data_d$V34[!is.na(data_d$V1001)]),
+x.table = rbind(x.table, round(c(sd(data_d$V34, na.rm=T), sd(data_d$V34[data_d$cc_ind==1]), sd(data_d$V34[data_d$MTFID %in% unique(fu_l$MTFID[!is.na(fu_l$Res)])]),sd(data_d$V34[!is.na(data_d$V1001)]),
  sd(data_d$V34[!is.na(data_d$V2001)]), sd(data_d$V34[!is.na(data_d$V3001)]),
  sd(data_d$V34[!is.na(data_d$V4001)]),sd(data_d$V34[!is.na(data_d$V5001)]),
  sd(data_d$V34[!is.na(data_d$V6001)])), 0))
@@ -895,12 +1156,12 @@ x.table=rbind(x.table, round(cbind(as.numeric(table(data_d[, x])/sum(table(data_
 
 #apply(x.table,1,sum)==0
 
-kable(data.frame(cbind(c("Age.m", "AGE.sd", names(table(data_v$V101)),names(table(data_v$V106)), names(table(data_v$V350)),
-names(table(data_v$V351_rc)), names(table(data_v$V363)), names(table(data_v$V364)),names(table(data_v$V379))), x.table[!(apply(x.table,1,sum)==0),])), row.names=NA, col.names = c("", "All", "CC", "AC", "19/20","21/22", "23/24","25/26", "27/28","29/30"))
+kable(data.frame(cbind(c("Age.m", "AGE.sd", names(table(data_v$V101)), names(table(data_v$V350)),
+names(table(data_v$V351_rc)), names(table(data_v$pa_col)),names(table(data_v$V379))), x.table[!(apply(x.table,1,sum)==0),])), row.names=NA, col.names = c("", "All", "CC", "AC", "19/20","21/22", "23/24","25/26", "27/28","29/30"))
 
 # 
 # kable(data.frame(cbind(c("Age.m", "AGE.sd", levels(data_v$V101), levels(data_v$V106), levels(data_v$V350),
-# levels(data_v$V351_rc), levels(data_v$V363), levels(data_v$V364),levels(data_v$V379)), x.table)), col.names = c("", "All", "CC", "AC", "19/20","21/22", "23/24","25/26", "27/28","29/30"))
+# levels(data_v$V351_rc), levels(data_v$V363), levels(data_v$pa_col),levels(data_v$V379)), x.table)), col.names = c("", "All", "CC", "AC", "19/20","21/22", "23/24","25/26", "27/28","29/30"))
 
 # bl.svy = svydesign(id= ~MTFID,  data = data_d)
 # cc.svy = svydesign(id= ~ MTFID, weights= ~wgt_cc, data = subset(data_d,cc_ind==1))
@@ -949,8 +1210,8 @@ binge$est=as.numeric(as.character(binge$est))
 
 binge_d=ggplot(data=binge,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Binge drinking", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Binge drinking", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -976,8 +1237,8 @@ B302$est=as.numeric(as.character(B302$est))
 
 B302_d=ggplot(data=B302,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Cigarette smoking", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Cigarette smoking", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1003,8 +1264,8 @@ B316$est=as.numeric(as.character(B316$est))
 
 B316_d=ggplot(data=B316,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Marijuana use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Marijuana use", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1030,8 +1291,8 @@ comp_nm$est=as.numeric(as.character(comp_nm$est))
 
 comp_nm_d=ggplot(data=comp_nm,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="NMPD use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="NMPD misuse", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1057,8 +1318,8 @@ comp_2$est=as.numeric(as.character(comp_2$est))
 
 comp_2_d=ggplot(data=comp_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Illicit drug use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Illicit drug use", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 B343=data.frame(cbind(rep(c("CC","AC","CC-attr-w","AC-attr-w"), each=7), rep(c("18", "19/20","21/22", "23/24","25/26", "27/28","29/30"),4),
@@ -1083,8 +1344,8 @@ B343$est=as.numeric(as.character(B343$est))
 
 B343_d=ggplot(data=B343,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Opioid use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Prescription opioid misuse", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 ```
 
@@ -1098,15 +1359,15 @@ ggsave(grid.arrange(arrangeGrob(binge_d + theme(axis.text.x = element_text(size 
                          comp_2_d + theme(axis.text.x = element_text(size =7), legend.position = "none"),
 ncol = 2
                          ), bottom=melegend,ncol=1),
-width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum.png")
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum.pdf")
 
 
-ggsave(binge_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-binge.png")
-ggsave(B302_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-b302.png")
-ggsave(B316_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-b316.png")
-ggsave(comp_nm_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-compnm.png")
-ggsave(comp_2_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-comp2.png")
-ggsave(B343_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-b343.png")
+ggsave(binge_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-binge.pdf")
+ggsave(B302_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-b302.pdf")
+ggsave(B316_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-b316.pdf")
+ggsave(comp_nm_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-compnm.pdf")
+ggsave(comp_2_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-comp2.pdf")
+ggsave(B343_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-b343.pdf")
 
 
 coll=data.frame(cbind(rep(c("CC","AC","CC-attr-w","AC-attr-w"), each=6), rep(c("19/20","21/22", "23/24","25/26", "27/28","29/30"),4),
@@ -1130,11 +1391,11 @@ coll$est=as.numeric(as.character(coll$est))
 
 coll_d=ggplot(data=coll,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   labs(title="College attendance", y="proportion", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
-ggsave(coll_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-coll.png")
+ggsave(coll_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-coll.pdf")
 
 marry=data.frame(cbind(rep(c("CC","AC","CC-attr-w","AC-attr-w"), each=7), rep(c("18", "19/20","21/22", "23/24","25/26", "27/28","29/30"),4),
                   c(mean(data_d$marry_0[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_1[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_2[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_3[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_4[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_5[data_d$cc_ind==1]==1,na.rm=TRUE),mean(data_d$marry_6[data_d$cc_ind==1]==1,na.rm=TRUE),
@@ -1158,11 +1419,11 @@ marry$est=as.numeric(as.character(marry$est))
 
 marry_d=ggplot(data=marry,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   labs(title="Married respondents", y="proportion", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
-ggsave(marry_d, width = 5, height = 3, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-marry.png")
+ggsave(marry_d, width = 5, height = 3, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-marry.pdf")
 
 ```
 
@@ -1206,8 +1467,8 @@ binge2$est=as.numeric(as.character(binge2$est))
 
 binge_d2=ggplot(data=binge2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Binge drinking", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Binge drinking", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1234,8 +1495,8 @@ B302_2$est=as.numeric(as.character(B302_2$est))
 
 B302_d2=ggplot(data=B302_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Cigarette smoking", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Cigarette smoking", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1261,8 +1522,8 @@ B316_2$est=as.numeric(as.character(B316_2$est))
 
 B316_d2=ggplot(data=B316_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Marijuana use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Marijuana use", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1288,8 +1549,8 @@ comp_nm_2$est=as.numeric(as.character(comp_nm_2$est))
 
 comp_nm_d2=ggplot(data=comp_nm_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="NMPD use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="NMPD misuse", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 
@@ -1315,8 +1576,8 @@ comp_2_2$est=as.numeric(as.character(comp_2_2$est))
 
 comp_2_d2=ggplot(data=comp_2_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Illicit drug use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Illicit drug use", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 
 B343_2=data.frame(cbind(rep(c("CC","AC","CC-attr-w","AC-attr-w"), each=6), rep(c( "19/20","21/22", "23/24","25/26", "27/28","29/30"),4),
@@ -1341,8 +1602,8 @@ B343_2$est=as.numeric(as.character(B343_2$est))
 
 B343_d2=ggplot(data=B343_2,aes(x=Panel, y=est, group=type, shape=type, color=type)) + 
   geom_point()+
-  geom_line()+
-  labs(title="Opioid use", y="Incidence", x="wave")+
+  geom_line(aes(linetype=type))+
+  labs(title="Prescription opioid misuse", y="Prevalence", x="wave")+
   theme_bw() + theme(axis.text.x = element_text(size = 7), legend.title = element_blank(),legend.position = "bottom")
 ```
 
@@ -1350,22 +1611,43 @@ B343_d2=ggplot(data=B343_2,aes(x=Panel, y=est, group=type, shape=type, color=typ
 ```{r dis-plot2, include=FALSE, warning=FALSE, message=FALSE}
 
 melegend = g_legend(binge_d)
-ggsave(grid.arrange(arrangeGrob(binge_d2 + theme(axis.text.x = element_text(size = 7), legend.position = "none"), B302_d2+theme(axis.text.x = element_text(size = 7), legend.position = "none"), B316_d2 + theme(axis.text.x = element_text(size = 7), legend.position = "none"),
-                                                  B343_d2 + theme(axis.text.x = element_text(size = 7), legend.position = "none"), 
-                         comp_nm_d2 +  scale_y_continuous(breaks = c(0.13, 0.17, 0.21))+theme(axis.text.x = element_text(size = 7), legend.position = "none"),
-                         comp_2_d2 + theme(axis.text.x = element_text(size =7), legend.position = "none"),
+ggsave(grid.arrange(arrangeGrob(binge_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B302_d2+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B316_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                                                  B343_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), 
+                         comp_nm_d2 +  scale_y_continuous(breaks = c(0.13, 0.17, 0.21))+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                         comp_2_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
 ncol = 2
                          ), bottom=melegend,ncol=1),
-width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-nobs.png")
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-nobs.pdf")
 
-ggsave(grid.arrange(arrangeGrob(binge_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), legend.position = "none"), B302_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+theme(axis.text.x = element_text(size = 7), legend.position = "none"), B316_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), legend.position = "none"),
-                                                  B343_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), legend.position = "none"), 
-                         comp_nm_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) +theme(axis.text.x = element_text(size = 7), legend.position = "none"),
-                         comp_2_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+ theme(axis.text.x = element_text(size =7), legend.position = "none"),
+ggsave(grid.arrange(arrangeGrob(binge_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B302_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B316_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                                                  B343_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), 
+                         comp_nm_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) +theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                         comp_2_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+ theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
 ncol = 2
                          ), bottom=melegend,ncol=1),
-width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/des-sum-nobs-samescale.png")
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-nobs-samescale.pdf")
+
+ggsave(grid.arrange(arrangeGrob(binge_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B302_d2+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""), B316_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                                                  B343_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""), 
+                         comp_nm_d2 +  scale_y_continuous(breaks = c(0.13, 0.17, 0.21))+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                         comp_2_d2 + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""),
+ncol = 2
+                         ), bottom=melegend,ncol=1),
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-nobs-p.pdf")
+
+ggsave(grid.arrange(arrangeGrob(binge_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"), B302_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""), B316_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                                                  B343_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) + theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""), 
+                         comp_nm_d2+scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475)) +theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none"),
+                         comp_2_d2 +scale_y_continuous(breaks = c(0.1, 0.2, 0.3, 0.4), limits=c(0.05,0.475))+ theme(axis.text.x = element_text(size = 7), title = element_text(size = 7), legend.position = "none")+labs(y=""),
+ncol = 2
+                         ), bottom=melegend,ncol=1),
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/des-sum-nobs-samescale-p.pdf")
 ```
+
+
+
+
+
 ## complete case analysis
 
 1. ignore the correlation among observations
@@ -1377,24 +1659,27 @@ rm(list=ls()[!ls() %in% c("data_long", "g_legend")])
 data_c=data_long[data_long$cc_ind==1,]
 
 
-cc_0 = glm(binge ~ panel*coll + V101 + V34 + V350 + V351_rc + V364 + V379 +  marry + binge_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(binge ~ panel*coll + V101 + V34 + V350 + V351_rc + pa_col + V379 +  marry + binge_0 + coll_0,  family="binomial", data=data_c)
 summary(cc_0)
 
-# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +    marry + binge_0 + ASTRAT ,  family="binomial", data=data_c)
+# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +    marry + binge_0 + ASTRAT ,  family="binomial", data=data_c)
 # 
-# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +    binge_0,  family="binomial", data=data_c)
+# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +    binge_0,  family="binomial", data=data_c)
 # 
-# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +    binge_0 + ASTRAT ,  family="binomial", data=data_c)
+# cc_00 = glm(binge ~ panel*coll + V101+  V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +    binge_0 + ASTRAT ,  family="binomial", data=data_c)
 # summary(cc_00)
 
 #cplot(cc_0, x= "panel")
 
-cc_0_c1 = glm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
+cc_0_c1 = glm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
 
 summary(cc_0_c1)
 #summary(cc_0)$coef[c(2:7,(dim(summary(cc_0)$coef)[1]-5):dim(summary(cc_0)$coef)[1]),1]
 
 #cc_use=cbind(exp(coef(cc_0)), exp(confint(cc_0,level = 0.95)))[c(2:7,(dim(summary(cc_0)$coef)[1]-5):dim(summary(cc_0)$coef)[1]),]
+
+# cc_use = rbind(rep(0,3),cbind(coef(cc_0)[2:6], confint(cc_0,level = 0.95)[2:6,]),rep(0,3),cbind(coef(cc_0_c1)[2:6], confint(cc_0_c1,level = 0.95)[2:6,]))
+
 
 cc_use = rbind(rep(1,3),cbind(exp(coef(cc_0)[2:6]), exp(confint(cc_0,level = 0.95)[2:6,])),rep(1,3),cbind(exp(coef(cc_0_c1)[2:6]), exp(confint(cc_0_c1,level = 0.95)[2:6,])))
 
@@ -1406,9 +1691,9 @@ cc_est$or = as.numeric(as.character(cc_est$or))
 cc_est$orl = as.numeric(as.character(cc_est$orl))
 cc_est$oru = as.numeric(as.character(cc_est$oru))
 
-p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
+p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type= type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -1418,24 +1703,24 @@ p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, 
 # 
 # p_cc_m=ggplot(data = panel_m,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="AveME: binge drinking", y="", x="CC")+
 #   theme_bw()  +theme(axis.text.x = element_text(size =6), legend.position = "none")
-# # ggsave(width=5, height = 3, units="in", device="png", file="binge-uw.png")  
+# # ggsave(width=5, height = 3, units="in", device="pdf", file="binge-uw.pdf")  
 # #cplot(binge_cc_0,"panel")
 # # 
-binge_cc_v = glm(binge ~ coll + marry + panel +  V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
-              V353 + V155 + V364 + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
-              V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342, family="binomial", data=data_c)
-# # 
-summary(binge_cc_v)
+# binge_cc_v = glm(binge ~ coll + marry + panel +  V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
+#               V353 + V155 + pa_col + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
+#               V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342, family="binomial", data=data_c)
+# # # 
+# summary(binge_cc_v)
 # # margins(binge_cc_v,variables = "panel",type="response")
 # # #plot(margins(binge_cc_v,variables = "panel",type="response"))
 # # cplot(binge_cc_v,"panel")
 
 pre.out_0 =predict(cc_0,type="response")
-pre.out_v =predict(binge_cc_v,type="response")
+#pre.out_v =predict(binge_cc_v,type="response")
 
 #roc(data_c$binge ~ pre.out_0, plot=TRUE, print.auc=TRUE)
 
@@ -1446,16 +1731,18 @@ pre.out_v =predict(binge_cc_v,type="response")
 2. GEE
 
 ```{r cc gee, echo=FALSE,warning=FALSE, message=FALSE}
-gee_cc = geeglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(binge)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 summary(gee_cc)
 
 # V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
-#               V353 + V155 + V363 + V364 + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
+#               V353 + V155 + V363 + pa_col + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
 #               V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342
 
-gee_cc_c1 = geeglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),  id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(binge)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),  id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
 
+# gcc_use=rbind(rep(0,3), cbind(coef(gee_cc)[2:6], summary(gee_cc)$coef[2:6,1]-1.96 * summary(gee_cc)$coef[2:6,2],summary(gee_cc)$coef[2:6,1]+1.96 * summary(gee_cc)$coef[2:6,2]),
+#               rep(0,3),cbind(coef(gee_cc_c1)[2:6], summary(gee_cc_c1)$coef[2:6,1]-1.96 * summary(gee_cc_c1)$coef[2:6,2],summary(gee_cc_c1)$coef[2:6,1]+1.96 * summary(gee_cc_c1)$coef[2:6,2]))
 gcc_use=rbind(rep(1,3), cbind(exp(coef(gee_cc)[2:6]), exp(summary(gee_cc)$coef[2:6,1]-1.96 * summary(gee_cc)$coef[2:6,2]),exp(summary(gee_cc)$coef[2:6,1]+1.96 * summary(gee_cc)$coef[2:6,2])),
               rep(1,3),cbind(exp(coef(gee_cc_c1)[2:6]), exp(summary(gee_cc_c1)$coef[2:6,1]-1.96 * summary(gee_cc_c1)$coef[2:6,2]),exp(summary(gee_cc_c1)$coef[2:6,1]+1.96 * summary(gee_cc_c1)$coef[2:6,2])))
 
@@ -1469,7 +1756,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
     geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -1485,14 +1772,15 @@ pre.out_g =predict(gee_cc,type="response")
 
 cc_svy1=svydesign(id= ~MTFID, weights= ~1, data = data_c, nest=T)
 
-cc_svy_bw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, design=cc_svy1, family=quasibinomial)
 summary(cc_svy_bw)
 
-cc_svy_bw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
+# ccb_use=rbind(rep(0,3), cbind(coef(cc_svy_bw)[2:6], confint(cc_svy_bw,level = 0.95)[2:6,]),
+#               rep(0,3), cbind(coef(cc_svy_bw_c1)[2:6],confint(cc_svy_bw_c1,level = 0.95)[2:6,]))
 ccb_use=rbind(rep(1,3), cbind(exp(coef(cc_svy_bw)[2:6]), exp(confint(cc_svy_bw,level = 0.95)[2:6,])),
               rep(1,3), cbind(exp(coef(cc_svy_bw_c1)[2:6]), exp(confint(cc_svy_bw_c1,level = 0.95)[2:6,])))
-
 
 ccb_est = data.frame(cbind(rep(c("no-coll","coll"),each=6), rep(c("19/20","21/22", "23/24","25/26", "27/28","29/30"),2),ccb_use))
 
@@ -1504,7 +1792,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -1515,18 +1803,18 @@ p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type
 # #panel_svy$factor=as.numeric(as.character(panel_svy$factor))
 # p_ccb=ggplot(data = panel_cc_svy_bw,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="", y="", x="CC-ID cluster")+
 #   theme_bw()+ theme(axis.text.x = element_text(size =6), legend.position = "none")
-#ggsave(width=5, height = 3, units="in", device="png", file="binge-basew.png") 
+#ggsave(width=5, height = 3, units="in", device="pdf", file="binge-basew.pdf") 
 
 pre.out_svy1 =predict(cc_svy_bw,type="response")
 
 
 
 #cplot(binge_svy,design=cc_svy,"panel")
-# binge_svy_v = svyglm(binge ~ coll + marry + panel +  V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+V353 + V155 + V364 + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 + V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342,
+# binge_svy_v = svyglm(binge ~ coll + marry + panel +  V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+V353 + V155 + pa_col + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 + V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342,
 # design=cc_svy, family=quasibinomial)
 # summary(binge_svy_v)
 
@@ -1538,11 +1826,13 @@ pre.out_svy1 =predict(cc_svy_bw,type="response")
 
 cc_svy=svydesign(id= ~MTFID, weights= ~wgt_cc, data = data_c, nest=T)
 
-cc_svy_aw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, design=cc_svy, family=quasibinomial)
 summary(cc_svy_aw)
 
-cc_svy_aw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
+# ccw_use=rbind(rep(0,3),cbind(coef(cc_svy_aw)[2:6], confint(cc_svy_aw,level = 0.95)[2:6,]),
+#               rep(0,3),cbind(coef(cc_svy_aw_c1)[2:6], confint(cc_svy_aw_c1,level = 0.95)[2:6,]))
 ccw_use=rbind(rep(1,3),cbind(exp(coef(cc_svy_aw)[2:6]), exp(confint(cc_svy_aw,level = 0.95)[2:6,])),
               rep(1,3),cbind(exp(coef(cc_svy_aw_c1)[2:6]), exp(confint(cc_svy_aw_c1,level = 0.95)[2:6,])))
 
@@ -1557,7 +1847,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -1568,7 +1858,7 @@ p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type
 # #panel_svy$factor=as.numeric(as.character(panel_svy$factor))
 # p_cca=ggplot(data = panel_cc_svy_aw,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="", y="", x="CC-attr-w")+
 #   theme_bw()  +theme(axis.text.x = element_text(size =6), legend.position = "none")
@@ -1588,13 +1878,16 @@ data_ac=data_long[!(is.na(data_long$binge)),]
 #sum(!(is.na(data_long$V1001)&is.na(data_long$V2001)&is.na(data_long$V3001)&is.na(data_long$V4001)&is.na(data_long$V5001)&is.na(data_long$V6001)))
 #data_ac = data_long[]
 
-ac_0 = glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0,  family="binomial", data=data_ac)
 
 summary(ac_0)
 
-ac_0_c1 = glm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),   family="binomial", data=data_ac)
+ac_0_c1 = glm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"),   family="binomial", data=data_ac)
 
 
+# 
+# ac_use=rbind(rep(0,3),cbind(coef(ac_0)[2:6], confint(ac_0,level = 0.95)[2:6,]),
+#              rep(0,3),cbind(coef(ac_0_c1)[2:6], confint(ac_0_c1,level = 0.95)[2:6,]))
 
 ac_use=rbind(rep(1,3),cbind(exp(coef(ac_0)[2:6]), exp(confint(ac_0,level = 0.95)[2:6,])),
              rep(1,3),cbind(exp(coef(ac_0_c1)[2:6]), exp(confint(ac_0_c1,level = 0.95)[2:6,])))
@@ -1609,7 +1902,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -1622,16 +1915,16 @@ p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, 
 # #panel_svy$factor=as.numeric(as.character(panel_svy$factor))
 # p_ac=ggplot(data = panel_ac_0,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="", y="", x="AC")+
 #   theme_bw()
-#ggsave(width=5, height = 3, units="in", device="png", file="binge-ac.png") 
+#ggsave(width=5, height = 3, units="in", device="pdf", file="binge-ac.pdf") 
 
 #cplot(binge_ac_0,"panel")
 
 # binge_ac_v = glm(binge ~ coll + marry + panel +  V101 + ASTRAT +V106  + V115 + V34 + V350+V351_rc+
-#               V353 + V155 + V364 + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
+#               V353 + V155 + pa_col + V383 + V379 +V365 + V366 + V367 + V368 + V369 + V370+V372 + V375 + V376 + V377 + V379 + V380 + V381 + V382 + V383 +V384 + V391 + V392 + V393 + V394 + V395 + V396 + V397 + V398 + V399 + V400 + V401 + V402 + V403 + V404 +
 #               V302 +V304 + V308 +V315 + V318 + V321 +V324 + V327 + V333 + V336 + V339 + V342, family="binomial", data=data_ac)
 # 
 # summary(binge_ac_v)
@@ -1650,14 +1943,17 @@ pre.out_0_ac =predict(ac_0,type="response")
 2. GEE
 
 ```{r ac gee, echo=FALSE,warning=FALSE, message=FALSE}
-gee_ac = geeglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, id=MTFID, waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(binge)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, id=MTFID, waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
 summary(gee_ac)
 
-gee_ac_c1 = geeglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(binge)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
 summary(gee_ac_c1)
 
+
+# gac_use=rbind(rep(0,3), cbind(coef(gee_ac)[2:6], summary(gee_ac)$coef[2:6,1]-1.96 * summary(gee_ac)$coef[2:6,2],summary(gee_ac)$coef[2:6,1]+1.96 * summary(gee_ac)$coef[2:6,2]),
+#               rep(0,3),cbind(coef(gee_ac_c1)[2:6], summary(gee_ac_c1)$coef[2:6,1]-1.96 * summary(gee_ac_c1)$coef[2:6,2],summary(gee_ac_c1)$coef[2:6,1]+1.96 * summary(gee_ac_c1)$coef[2:6,2]))
 
 gac_use=rbind(rep(1,3), cbind(exp(coef(gee_ac)[2:6]), exp(summary(gee_ac)$coef[2:6,1]-1.96 * summary(gee_ac)$coef[2:6,2]),exp(summary(gee_ac)$coef[2:6,1]+1.96 * summary(gee_ac)$coef[2:6,2])),
               rep(1,3),cbind(exp(coef(gee_ac_c1)[2:6]), exp(summary(gee_ac_c1)$coef[2:6,1]-1.96 * summary(gee_ac_c1)$coef[2:6,2]),exp(summary(gee_ac_c1)$coef[2:6,1]+1.96 * summary(gee_ac_c1)$coef[2:6,2])))
@@ -1672,7 +1968,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
     geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -1691,11 +1987,13 @@ pre.out_g_ac =predict(gee_ac,type="response")
 
 ac_svy_b=svydesign(id= ~MTFID, data = data_ac, nest=T)
 
-ac_svy_bw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 summary(ac_svy_bw)
 
-ac_svy_bw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
+#acb_use=rbind(rep(0,3), cbind(coef(ac_svy_bw)[2:6], confint(ac_svy_bw,level = 0.95)[2:6,]),
+#              rep(0,3),cbind(coef(ac_svy_bw_c1)[2:6], confint(ac_svy_bw_c1,level = 0.95)[2:6,]))
 acb_use=rbind(rep(1,3), cbind(exp(coef(ac_svy_bw)[2:6]), exp(confint(ac_svy_bw,level = 0.95)[2:6,])),
               rep(1,3),cbind(exp(coef(ac_svy_bw_c1)[2:6]), exp(confint(ac_svy_bw_c1,level = 0.95)[2:6,])))
 
@@ -1709,7 +2007,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -1720,14 +2018,14 @@ p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type
 # #panel_svy$factor=as.numeric(as.character(panel_svy$factor))
 # p_acb=ggplot(data = panel_ac_svy_bw,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="", y="", x="AC-ID cluster")+
 #   theme_bw()
-# #ggsave(width=5, height = 3, units="in", device="png", file="binge-basew.png") 
+# #ggsave(width=5, height = 3, units="in", device="pdf", file="binge-basew.pdf") 
 
 pre.out_svy_ac_b =predict(ac_svy_bw,type="response")
-#ggsave(width=5, height = 3, units="in", device="png", file="binge-basew-ac.png") 
+#ggsave(width=5, height = 3, units="in", device="pdf", file="binge-basew-ac.pdf") 
 
 
 
@@ -1740,10 +2038,13 @@ pre.out_svy_ac_b =predict(ac_svy_bw,type="response")
 ```{r w-ac-2, echo=FALSE,warning=FALSE}
 ac_svy=svydesign(id= ~MTFID, weights= ~wgt_ac, data = data_ac, nest=T)
 
-ac_svy_aw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(binge ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + coll_0, design=ac_svy, family=quasibinomial)
 summary(ac_svy_aw)
 
-ac_svy_aw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(binge ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + binge_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+
+# acw_use=rbind(rep(0,3), cbind(coef(ac_svy_aw)[2:6], confint(ac_svy_aw,level = 0.95)[2:6,]),
+#               rep(0,3), cbind(coef(ac_svy_aw_c1)[2:6], confint(ac_svy_aw_c1,level = 0.95)[2:6,]))
 
 acw_use=rbind(rep(1,3), cbind(exp(coef(ac_svy_aw)[2:6]), exp(confint(ac_svy_aw,level = 0.95)[2:6,])),
               rep(1,3), cbind(exp(coef(ac_svy_aw_c1)[2:6]), exp(confint(ac_svy_aw_c1,level = 0.95)[2:6,])))
@@ -1758,7 +2059,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -1769,7 +2070,7 @@ p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type
 # #panel_svy$factor=as.numeric(as.character(panel_svy$factor))
 # p_aca=ggplot(data = panel_ac_svy_aw,aes(x=factor, y=AME, group=coll, type=coll, color=coll)) + 
 #   geom_point()+
-#   geom_line()+
+#   geom_line(aes(linetype=type))+
 #   geom_errorbar(aes(ymin=lower, ymax=upper), width=0.2)+
 #   labs(title="", y="", x="AC-attr-w")+
 #   theme_bw() 
@@ -1832,6 +2133,7 @@ rbind(summary(ac_0)$coef[2:7,c(1,4)],summary(ac_0_c1)$coef[2:7,c(1,4)]),
 )
 
 tjlegend = g_legend(p_acw)
+
 ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+theme(axis.text.x = element_text(size =6), legend.position = "none"), p_ac+ scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+theme(axis.text.x = element_text(size =6), legend.position = "none"), p_gcc + scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
                                                   p_gac + scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+ theme(axis.text.x = element_text(size =6), legend.position = "none"), 
                          p_ccb + scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
@@ -1840,23 +2142,23 @@ ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.2,2.4), b
                          p_acw + scale_y_continuous(limits = c(0.2,2.4), breaks = c(1,2,3))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
                          ), bottom=tjlegend, top="Binge drinking",ncol=1),
-width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/binge.png")
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/binge.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Binge drinking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/binge-p1.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/binge-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Binge drinking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/binge-p2.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/binge-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Binge drinking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/binge-p3.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/binge-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Binge drinking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/binge-p4.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/binge-p4.pdf")
 
 as.numeric(auc(roc(data_c$binge ~ pre.out_0, print.auc=TRUE)))
 as.numeric(auc(roc(data_c$binge ~ pre.out_g, print.auc=TRUE)))
@@ -1874,41 +2176,41 @@ as.numeric(auc(roc(data_ac$binge ~ pre.out_svy_ac, print.auc=TRUE)))
 ```{r smoking, echo=FALSE, warning=FALSE, message=FALSE}
 
 
-cc_0 = glm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0,  family="binomial", data=data_c)
 
 
-gee_cc = geeglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(B302)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0, design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0,design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0,design=cc_svy, family=quasibinomial)
 
-ac_0 = glm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0,  family="binomial", data=data_ac)
 
-gee_ac = geeglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(B302)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(B302 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw = svyglm(B302 ~panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(B302 ~panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + coll_0, design=ac_svy, family=quasibinomial)
 
 summary(cc_0); summary(gee_cc); summary(cc_svy_bw); summary(cc_svy_aw); summary(ac_0); summary(gee_ac); summary(ac_svy_bw); summary(ac_svy_aw); 
 
-cc_0_c1 = glm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_c)
+cc_0_c1 = glm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_c)
 
 
-gee_cc_c1 = geeglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(B302)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
-ac_0_c1 = glm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
+ac_0_c1 = glm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
 
-gee_ac_c1 = geeglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(B302)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(B302 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B302_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
 
 
 kable(
@@ -1934,7 +2236,7 @@ cc_est$oru = as.numeric(as.character(cc_est$oru))
 
 p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -1953,7 +2255,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -1972,7 +2274,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -1991,7 +2293,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -2010,7 +2312,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -2029,7 +2331,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -2048,7 +2350,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -2068,7 +2370,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -2083,23 +2385,23 @@ ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.25, 1.52)
                          p_acw + scale_y_continuous(limits = c(0.25, 1.52), breaks = c(0.5, 1, 1.5))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
               ), bottom=tjlegend, top="Cigarette smoking",ncol=1),
-       width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/smoking.png")
+       width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/smoking.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Cigarette smoking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/smoking-p1.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/smoking-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Cigarette smoking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/smoking-p2.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/smoking-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Cigarette smoking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/smoking-p3.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/smoking-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Cigarette smoking",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/smoking-p4.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/smoking-p4.pdf")
 ```
 
 
@@ -2108,41 +2410,41 @@ device="png", file="I:/WorkingProgramFiles/plot/0706/smoking-p4.png")
 
 ```{r marij, echo=FALSE, warning=FALSE, message=FALSE}
 
-cc_0 = glm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0,  family="binomial", data=data_c)
 
 
-gee_cc = geeglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(B316)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0, design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0,design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0,design=cc_svy, family=quasibinomial)
 
-ac_0 = glm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0,  family="binomial", data=data_ac)
 
-gee_ac = geeglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(B316)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(B316 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + coll_0, design=ac_svy, family=quasibinomial)
 
 summary(cc_0); summary(gee_cc); summary(cc_svy_bw); summary(cc_svy_aw); summary(ac_0); summary(gee_ac); summary(ac_svy_bw); summary(ac_svy_aw); 
 
-cc_0_c1 = glm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
+cc_0_c1 = glm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
 
 
-gee_cc_c1 = geeglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(B316 )) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
-ac_0_c1 = glm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
+ac_0_c1 = glm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
 
-gee_ac_c1 = geeglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(B316)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(B316 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B316_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
 
 
 kable(
@@ -2168,7 +2470,7 @@ cc_est$oru = as.numeric(as.character(cc_est$oru))
 
 p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -2187,7 +2489,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -2206,7 +2508,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -2225,7 +2527,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -2244,7 +2546,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -2263,7 +2565,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -2282,7 +2584,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -2302,7 +2604,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -2317,64 +2619,64 @@ ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.48,1.3), 
                          p_acw + scale_y_continuous(limits = c(0.48,1.3), breaks = c(0.5,1))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
                          ), bottom=tjlegend, top="Marijuana use",ncol=1),
-width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/marijuana.png")
+width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/marijuana.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Marijuana use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/marijuana-p1.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/marijuana-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Marijuana use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/marijuana-p2.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/marijuana-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Marijuana use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/marijuana-p3.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/marijuana-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Marijuana use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/marijuana-p4.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/marijuana-p4.pdf")
 ```
 
 #composite: AMPH, BRBT, TRQL, HEROIN,
 
 
 ```{r comp_nm, echo=FALSE, warning=FALSE, message=FALSE}
-cc_0 = glm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0,  family="binomial", data=data_c)
 
 
-gee_cc = geeglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(comp_nm)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0, design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0,design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0,design=cc_svy, family=quasibinomial)
 
-ac_0 = glm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0,  family="binomial", data=data_ac)
 
-gee_ac = geeglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(comp_nm)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(comp_nm ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + coll_0, design=ac_svy, family=quasibinomial)
 
 summary(cc_0); summary(gee_cc); summary(cc_svy_bw); summary(cc_svy_aw); summary(ac_0); summary(gee_ac); summary(ac_svy_bw); summary(ac_svy_aw); 
 
-cc_0_c1 = glm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
+cc_0_c1 = glm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
 
 
-gee_cc_c1 = geeglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(comp_nm)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
-ac_0_c1 = glm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
+ac_0_c1 = glm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
 
-gee_ac_c1 = geeglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(comp_nm)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(comp_nm ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_nm_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
 
 
 kable(
@@ -2400,7 +2702,7 @@ cc_est$oru = as.numeric(as.character(cc_est$oru))
 
 p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -2419,7 +2721,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -2438,7 +2740,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -2457,7 +2759,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -2476,7 +2778,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -2495,7 +2797,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -2514,7 +2816,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -2534,7 +2836,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -2549,65 +2851,65 @@ ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.6, 1.8), 
                         p_ccw + scale_y_continuous(limits = c(0.6, 1.8), breaks = c(0.5,1,1.5))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
                          p_acw + scale_y_continuous(limits = c(0.6, 1.8), breaks = c(0.5,1,1.5))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
-                         ), bottom=tjlegend, top="NMPD use",ncol=1),
-       width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/compnm.png")
+                         ), bottom=tjlegend, top="NMPD misuse",ncol=1),
+       width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/compnm.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="NMPD use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/compnm-p1.png")
+ncol = 2), bottom=tjlegend, top="NMPD misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/compnm-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="NMPD use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/compnm-p2.png")
+ncol = 2), bottom=tjlegend, top="NMPD misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/compnm-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="NMPD use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/compnm-p3.png")
+ncol = 2), bottom=tjlegend, top="NMPD misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/compnm-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="NMPD use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/compnm-p4.png")
+ncol = 2), bottom=tjlegend, top="NMPD misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/compnm-p4.pdf")
 ```
 
 
 #composite: AMPH, BRBT, TRQL, NARC
 
 ```{r comp_2, echo=FALSE, warning=FALSE, message=FALSE}
-cc_0 = glm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0,  family="binomial", data=data_c)
 
 
-gee_cc = geeglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(comp_2)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0, design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0,design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0,design=cc_svy, family=quasibinomial)
 
-ac_0 = glm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0,  family="binomial", data=data_ac)
 
-gee_ac = geeglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(comp_2)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(comp_2 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + coll_0, design=ac_svy, family=quasibinomial)
 
 summary(cc_0); summary(gee_cc); summary(cc_svy_bw); summary(cc_svy_aw); summary(ac_0); summary(gee_ac); summary(ac_svy_bw); summary(ac_svy_aw); 
 
-cc_0_c1 = glm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
+cc_0_c1 = glm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
 
 
-gee_cc_c1 = geeglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(comp_2)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
-ac_0_c1 = glm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
+ac_0_c1 = glm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
 
-gee_ac_c1 = geeglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(comp_2)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(comp_2 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + comp_2_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
 
 
 kable(
@@ -2633,7 +2935,7 @@ cc_est$oru = as.numeric(as.character(cc_est$oru))
 
 p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -2652,7 +2954,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -2671,7 +2973,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -2690,7 +2992,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -2709,7 +3011,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -2728,7 +3030,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -2747,7 +3049,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -2767,7 +3069,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -2783,64 +3085,64 @@ ggsave(grid.arrange(arrangeGrob(p_cc + scale_y_continuous(limits = c(0.3, 1.8), 
                          p_acw + scale_y_continuous(limits = c(0.3, 1.8), breaks = c(0.5,1, 1.5))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
                          ), bottom=tjlegend, top="Illicit drug use",ncol=1),
-       width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/comp2.png")
+       width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/comp2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Illicit drug use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/comp2-p1.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/comp2-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Illicit drug use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/comp2-p2.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/comp2-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Illicit drug use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/comp2-p3.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/comp2-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
 ncol = 2), bottom=tjlegend, top="Illicit drug use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/comp2-p4.png")
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/comp2-p4.pdf")
 
 ```
 
 #NRAC
 
 ```{r 343, echo=FALSE, warning=FALSE,  message=FALSE}
-cc_0 = glm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0,  family="binomial", data=data_c)
+cc_0 = glm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0,  family="binomial", data=data_c)
 
 
-gee_cc = geeglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc = geeglm(as.numeric(as.character(B343)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0, design=cc_svy1, family=quasibinomial)
+cc_svy_bw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0, design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0,design=cc_svy, family=quasibinomial)
+cc_svy_aw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0,design=cc_svy, family=quasibinomial)
 
-ac_0 = glm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0,  family="binomial", data=data_ac)
+ac_0 = glm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0,  family="binomial", data=data_ac)
 
-gee_ac = geeglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac = geeglm(as.numeric(as.character(B343)) ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0, id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0, design=ac_svy_b, family=quasibinomial)
+ac_svy_bw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0, design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + coll_0, design=ac_svy, family=quasibinomial)
+ac_svy_aw = svyglm(B343 ~ panel*coll + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + coll_0, design=ac_svy, family=quasibinomial)
 
 summary(cc_0); summary(gee_cc); summary(cc_svy_bw); summary(cc_svy_aw); summary(ac_0); summary(gee_ac); summary(ac_svy_bw); summary(ac_svy_aw); 
 
-cc_0_c1 = glm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
+cc_0_c1 = glm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"),  family="binomial", data=data_c)
 
 
-gee_cc_c1 = geeglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
+gee_cc_c1 = geeglm(as.numeric(as.character(B343)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_c, corstr = "ex")
 
-cc_svy_bw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
+cc_svy_bw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy1, family=quasibinomial)
 
-cc_svy_aw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
+cc_svy_aw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=cc_svy, family=quasibinomial)
 
-ac_0_c1 = glm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
+ac_0_c1 = glm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), family="binomial", data=data_ac)
 
-gee_ac_c1 = geeglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
+gee_ac_c1 = geeglm(as.numeric(as.character(B343)) ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), id=MTFID,waves=panel, family=binomial("logit"), data=data_ac, corstr = "ex")
 
-ac_svy_bw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
+ac_svy_bw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy_b, family=quasibinomial)
 
-ac_svy_aw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + V364 + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
+ac_svy_aw_c1 = svyglm(B343 ~ panel*relevel(coll, ref="1") + V101 + V34 + V350 + relevel(V351_rc, ref="White") + pa_col + V379 +  marry + B343_0 + relevel(factor(coll_0), ref = "1"), design=ac_svy, family=quasibinomial)
 
 
 kable(
@@ -2866,7 +3168,7 @@ cc_est$oru = as.numeric(as.character(cc_est$oru))
 
 p_cc=ggplot(data = cc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC")+
@@ -2885,7 +3187,7 @@ gcc_est$oru = as.numeric(as.character(gcc_est$oru))
 
 p_gcc=ggplot(data = gcc_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-gee")+
@@ -2904,7 +3206,7 @@ ccb_est$oru = as.numeric(as.character(ccb_est$oru))
 
 p_ccb=ggplot(data = ccb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-ID cluster")+
@@ -2923,7 +3225,7 @@ ccw_est$oru = as.numeric(as.character(ccw_est$oru))
 
 p_ccw=ggplot(data = ccw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="Odds ratio", x="CC-attr-w")+
@@ -2942,7 +3244,7 @@ ac_est$oru = as.numeric(as.character(ac_est$oru))
 
 p_ac=ggplot(data = ac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC")+
@@ -2961,7 +3263,7 @@ gac_est$oru = as.numeric(as.character(gac_est$oru))
 
 p_gac=ggplot(data = gac_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-gee")+
@@ -2980,7 +3282,7 @@ acb_est$oru = as.numeric(as.character(acb_est$oru))
 
 p_acb=ggplot(data = acb_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-ID cluster")+
@@ -3000,7 +3302,7 @@ acw_est$oru = as.numeric(as.character(acw_est$oru))
 
 p_acw=ggplot(data = acw_est,aes(x=panel, y=or, group=type, shape=type, type=type, color=type)) + 
   geom_point()+
-  geom_line()+
+  geom_line(aes(linetype=type))+
   geom_errorbar(aes(ymin=orl, ymax=oru), width=0.2)+
   geom_hline(yintercept = 1, linetype="dashed")+
   labs(title="", y="", x="AC-attr-w")+
@@ -3015,24 +3317,24 @@ ggsave(grid.arrange(arrangeGrob(p_cc+ scale_y_continuous(limits = c(0.2, 2.2), b
                         p_ccw + scale_y_continuous(limits = c(0.2, 2.2), breaks = c(1,2))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
                          p_acw + scale_y_continuous(limits = c(0.2, 2.2), breaks = c(1,2))+ theme(axis.text.x = element_text(size =6), legend.position = "none"),
 ncol = 2
-                         ), bottom=tjlegend, top="Opioid use",ncol=1),
-       width = 5, height = 6, units = "in", device="png", file="I:/WorkingProgramFiles/plot/0706/narc.png")
+                         ), bottom=tjlegend, top="Prescription opioid misuse",ncol=1),
+       width = 5, height = 6, units = "in", device="pdf", file="I:/WorkingProgramFiles/plot/0409/narc.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_cc +theme(legend.position = "none"), p_ac+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="Opioid use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/narc-p1.png")
+ncol = 2), bottom=tjlegend, top="Prescription opioid misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/narc-p1.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_gcc +theme(legend.position = "none"), p_gac+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="Opioid use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/narc-p2.png")
+ncol = 2), bottom=tjlegend, top="Prescription opioid misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/narc-p2.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccb +theme(legend.position = "none"), p_acb+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="Opioid use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/narc-p3.png")
+ncol = 2), bottom=tjlegend, top="Prescription opioid misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/narc-p3.pdf")
 
 ggsave(grid.arrange(arrangeGrob(p_ccw +theme(legend.position = "none"), p_acw+ theme( legend.position = "none"), 
-ncol = 2), bottom=tjlegend, top="Opioid use",ncol=1),
-device="png", file="I:/WorkingProgramFiles/plot/0706/narc-p4.png")
+ncol = 2), bottom=tjlegend, top="Prescription opioid misuse",ncol=1),
+device="pdf", file="I:/WorkingProgramFiles/plot/0409/narc-p4.pdf")
 ```
 
 
@@ -3045,5 +3347,5 @@ device="png", file="I:/WorkingProgramFiles/plot/0706/narc-p4.png")
   
   summary(data_c$wgt_ac[data_c$coll==1])
   summary(data_c$wgt_ac[data_c$coll==0])
-  
+
 ```
